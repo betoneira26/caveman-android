@@ -10,8 +10,10 @@ import {
 test("standalone binary installer supports Windows targets", () => {
   assert.deepEqual(targetPlatform("win32", "x64"), { os: "win32", arch: "amd64" });
   assert.deepEqual(targetPlatform("win32", "arm64"), { os: "win32", arch: "arm64" });
+  assert.deepEqual(targetPlatform("android", "arm64"), { os: "android", arch: "arm64" });
   assert.equal(binaryInstallFilename("caveman-mcp", "win32"), "caveman-mcp.exe");
   assert.equal(binaryInstallFilename("caveman-mcp", "darwin"), "caveman-mcp");
+  assert.equal(binaryInstallFilename("caveman-mcp", "android"), "caveman-mcp");
 });
 
 test("Windows PATH lookup respects PATHEXT and existing extensions", () => {

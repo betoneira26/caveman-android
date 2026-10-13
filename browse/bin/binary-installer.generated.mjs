@@ -64,9 +64,12 @@ function onPath(name) {
 
 export function targetPlatform(os = process.platform, nodeArch = process.arch) {
   const arch = nodeArch === "x64" ? "amd64" : nodeArch;
+  if (os === "android" && arch === "arm64") {
+    return { os: "android", arch: "arm64" };
+  }
   if (!(os === "darwin" || os === "linux" || os === "win32") ||
       !(arch === "arm64" || arch === "amd64")) {
-    throw new Error(`no prebuilt binary for ${os}/${arch} — supported: darwin/arm64, darwin/amd64, linux/arm64, linux/amd64, win32/arm64, win32/amd64`);
+    throw new Error(`no prebuilt binary for ${os}/${arch} — supported: darwin/arm64, darwin/amd64, linux/arm64, linux/amd64, win32/arm64, win32/amd64, android/arm64`);
   }
   return { os, arch };
 }
@@ -185,7 +188,7 @@ export async function ensureBinary({ name, envVar }) {
   if (executable(target)) return target;
 
   const { os, arch } = targetPlatform();
-  const artifact = `${name}_${os}_${arch}`;
+  let artifact = `${name}_${os}_${arch}`;
   const base = (process.env.CAVE_BINARY_RELEASE_BASE ?? BINARY_RELEASE_BASE_DEFAULT).replace(/\/+$/, "");
   const release = `${base}/${BINARY_RELEASE}`;
   const timeout = timeoutMs();
@@ -202,7 +205,17 @@ export async function ensureBinary({ name, envVar }) {
   if (expectedDigest(checksums, "RELEASE") !== createHash("sha256").update(`${BINARY_RELEASE}\n`).digest("hex")) {
     throw new Error(`signed checksum manifest is not for ${BINARY_RELEASE} — refusing to install`);
   }
-  const expected = expectedDigest(checksums, artifact);
+  let expected;
+  try {
+    expected = expectedDigest(checksums, artifact);
+  } catch (err) {
+    if (os === "android") {
+      artifact = `${name}_linux_${arch}`;
+      expected = expectedDigest(checksums, artifact);
+    } else {
+      throw err;
+    }
+  }
   mkdirSync(binDir, { recursive: true });
   // Per-process part path, and NO pre-unlink. A fixed `${target}.part` plus a
   // cleanup() immediately before an O_CREAT|O_EXCL open made the exclusivity

@@ -2504,6 +2504,9 @@ export function setupPlatform(
   nodeArch: string = process.arch,
 ): { os: string; arch: string } {
   const arch = nodeArch === "x64" ? "amd64" : nodeArch;
+  if (os === "android" && arch === "arm64") {
+    return { os: "android", arch: "arm64" };
+  }
   if (!(os === "darwin" || os === "linux" || os === "win32") ||
       !(arch === "arm64" || arch === "amd64")) {
     throw new Error(OFF_STATES.unsupportedPlatform(os, arch).line);
@@ -2767,8 +2770,12 @@ async function setupInstall(json: boolean, options: { continuing?: boolean } = {
   const installed: InstalledBinary[] = [];
   const artifactDigests: Record<string, string> = {};
   for (const name of INSTALL_BINARIES) {
-    const artifact = `${name}_${platform.os}_${platform.arch}`;
-    const expected = checksums.get(artifact);
+    let artifact = `${name}_${platform.os}_${platform.arch}`;
+    let expected = checksums.get(artifact);
+    if (!expected && platform.os === "android") {
+      artifact = `${name}_linux_${platform.arch}`;
+      expected = checksums.get(artifact);
+    }
     if (!expected) {
       throw new Error(`signature check failed for ${artifact} — refusing to install; partial download deleted`);
     }
@@ -11691,7 +11698,14 @@ export function wrapExternalWritesDisabled(env: NodeJS.ProcessEnv = process.env)
 // then signals the proxy (CAVEMAN_RECOVERY=mcp) that recovery is available.
 
 function cavemanHome(): string {
-  return process.env.CAVEMAN_HOME ?? join(homedir(), ".caveman");
+  const envHome = process.env.CAVEMAN_HOME;
+  if (envHome) return envHome;
+  const home = homedir();
+  if (!home || home === "/") {
+    const tmp = process.env.TMPDIR || "/data/local/tmp";
+    return join(tmp, ".caveman");
+  }
+  return join(home, ".caveman");
 }
 
 // ensureCavemanHome creates ~/.caveman itself with owner-only perms and repairs
@@ -11718,6 +11732,17 @@ function cavemanBin(name: string, envVar: string): string {
   if (onPath) return onPath;
   const local = join(cavemanHome(), "bin", binaryInstallFilename(name));
   if (isExecutable(local)) return local;
+  const here = dirname(fileURLToPath(import.meta.url));
+  const bundledCandidates = [
+    join(here, "..", "bin", binaryInstallFilename(name)),
+    join(here, "..", "bin", `${name}_${process.platform}_${process.arch === "x64" ? "amd64" : process.arch}`),
+    join(here, "..", "bin", `${name}_android_${process.arch === "x64" ? "amd64" : process.arch}`),
+    join(here, "..", "bin", `${name}_linux_${process.arch === "x64" ? "amd64" : process.arch}`),
+    join(here, "bin", binaryInstallFilename(name)),
+  ];
+  for (const candidate of bundledCandidates) {
+    if (isExecutable(candidate)) return candidate;
+  }
   return name;
 }
 function mcpServerMarkerPath(agentId: string, serverName: string): string {

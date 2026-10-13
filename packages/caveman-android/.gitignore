@@ -1,0 +1,4 @@
+bin/caveman-*
+bin/cavemem
+dist/
+node_modules/

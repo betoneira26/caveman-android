@@ -104,10 +104,16 @@ func runNativeHookBridge(args []string) {
 	home := env.String("CAVEMAN_HOME", "")
 	if home == "" {
 		userHome, err := os.UserHomeDir()
-		if err != nil {
-			return
+		if err != nil || userHome == "" || userHome == "/" {
+			if tmp := os.Getenv("TMPDIR"); tmp != "" {
+				userHome = tmp
+			} else if _, statErr := os.Stat("/data/local/tmp"); statErr == nil {
+				userHome = "/data/local/tmp"
+			}
 		}
-		home = filepath.Join(userHome, ".caveman")
+		if userHome != "" && userHome != "/" {
+			home = filepath.Join(userHome, ".caveman")
+		}
 	}
 	raw, err := readNativeHookPayload(os.Stdin)
 	if err != nil || len(raw) > nativeHookMaxPayloadBytes {
@@ -1238,7 +1244,14 @@ func mustHome(logger *slog.Logger) string {
 	home := env.String("CAVEMAN_HOME", "")
 	if home == "" {
 		h, err := os.UserHomeDir()
-		if err != nil {
+		if err != nil || h == "" || h == "/" {
+			if tmp := os.Getenv("TMPDIR"); tmp != "" {
+				h = tmp
+			} else if _, statErr := os.Stat("/data/local/tmp"); statErr == nil {
+				h = "/data/local/tmp"
+			}
+		}
+		if h == "" || h == "/" {
 			logger.Error("cannot resolve home directory", "error", err)
 			os.Exit(1)
 		}

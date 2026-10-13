@@ -26,6 +26,15 @@ export const RELEASE_TARGETS = Object.freeze([
   ["windows", "amd64"],
 ]);
 
+export const EXTRA_TARGETS = Object.freeze([
+  ["android", "arm64"],
+]);
+
+export const SUPPORTED_TARGETS = Object.freeze([
+  ...RELEASE_TARGETS,
+  ...EXTRA_TARGETS,
+]);
+
 // caveman-proxy and caveman-engine carry the tree-sitter code compressor, which
 // is C. Built without cgo it parses Go only, and a Read of a TypeScript, Python
 // or Rust file passes through uncompressed (#1020, #1120). Those two
@@ -44,11 +53,13 @@ const ZIG_TARGETS = Object.freeze({
   "linux/amd64": "x86_64-linux-musl",
   "windows/arm64": "aarch64-windows-gnu",
   "windows/amd64": "x86_64-windows-gnu",
+  "android/arm64": "aarch64-linux-musl",
 });
 
 // The go build environment and flags for one release artifact.
 export function releaseGoBuild(name, goos, arch, { zig = "zig", darwinStubs = "", version = "" } = {}) {
-  const env = { CGO_ENABLED: "0", GOOS: goos, GOARCH: arch };
+  const actualOS = goos === "android" ? "linux" : goos;
+  const env = { CGO_ENABLED: "0", GOOS: actualOS, GOARCH: arch };
   const args = ["-trimpath"];
   // -X main.version stamps the release tag over main.go's "dev" default. Only
   // caveman-proxy and caveman-mcp declare main.version; the linker ignores the
@@ -60,19 +71,19 @@ export function releaseGoBuild(name, goos, arch, { zig = "zig", darwinStubs = ""
   }
   env.CGO_ENABLED = "1";
   // Go splits CC on spaces but honors quotes, so a ZIG path with a space works.
-  env.CC = `'${zig}' cc -target ${ZIG_TARGETS[`${goos}/${arch}`]}`;
+  env.CC = `'${zig}' cc -target ${ZIG_TARGETS[`${goos}/${arch}`] ?? ZIG_TARGETS[`linux/${arch}`]}`;
   // cgo is for the grammars only. Linux keeps the pure-Go DNS and user lookup
   // its old CGO_ENABLED=0 build had, not static musl's. darwin and windows get no
   // tags: they always used the system resolver (libSystem getaddrinfo,
   // GetAddrInfoW), which netgo would replace, breaking scoped VPN DNS and .local.
-  if (goos === "linux") args.push("-tags", "netgo,osusergo");
+  if (goos === "linux" || goos === "android") args.push("-tags", "netgo,osusergo");
   // No debug info, which keeps the cgo builds reproducible and near the size of
   // the pure-Go ones. An externally linked build ID hashes link inputs that vary
   // between machines and Go caches (the stub directory below among them), and
   // -w also keeps Go from merging DWARF with the build machine's own dsymutil.
   const ldflags = [...stamp, "-buildid=", "-w"];
   // musl, fully static: one Linux binary for any glibc age and for Alpine.
-  if (goos === "linux") ldflags.push("-linkmode external -extldflags '-static -s'");
+  if (goos === "linux" || goos === "android") ldflags.push("-linkmode external -extldflags '-static -s'");
   // zig's Mach-O UUID hashes the paths and mtimes of the objects in its debug
   // map, which sit in Go's temporary link directory; -Wl,-S drops that map.
   if (goos === "darwin") ldflags.push(`-extldflags '-L${darwinStubs} -F${darwinStubs} -Wl,-S'`);
@@ -148,7 +159,7 @@ function parseArgs(argv) {
     else if (arg === "--target") {
       const value = argv[++index] ?? "";
       const [goos, arch] = value.split("/");
-      if (!RELEASE_TARGETS.some(([knownOS, knownArch]) => knownOS === goos && knownArch === arch)) {
+      if (!SUPPORTED_TARGETS.some(([knownOS, knownArch]) => knownOS === goos && knownArch === arch)) {
         throw new Error(`unsupported release target ${JSON.stringify(value)}`);
       }
       targets.push([goos, arch]);

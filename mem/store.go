@@ -714,7 +714,15 @@ func memID(text string) string {
 func defaultDir() string {
 	home := os.Getenv("CAVEMAN_HOME")
 	if home == "" {
-		if h, err := os.UserHomeDir(); err == nil {
+		h, err := os.UserHomeDir()
+		if err != nil || h == "" || h == "/" {
+			if tmp := os.Getenv("TMPDIR"); tmp != "" {
+				h = tmp
+			} else if _, statErr := os.Stat("/data/local/tmp"); statErr == nil {
+				h = "/data/local/tmp"
+			}
+		}
+		if h != "" && h != "/" {
 			home = filepath.Join(h, ".caveman")
 		} else {
 			home = ".caveman"

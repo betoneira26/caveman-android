@@ -1,0 +1,29 @@
+{
+  "name": "caveman-android",
+  "version": "2.1.0",
+  "description": "Caveman context compression layer ported for Android (aarch64)",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "caveman": "./dist/index.js",
+    "cave": "./dist/index.js",
+    "caveman-proxy": "./bin/caveman-proxy",
+    "caveman-engine": "./bin/caveman-engine",
+    "caveman-mcp": "./bin/caveman-mcp",
+    "cavemem": "./bin/cavemem",
+    "caveman-browse": "./bin/caveman-browse",
+    "caveman-shrink": "./bin/caveman-shrink"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "scripts",
+    "README.md"
+  ],
+  "scripts": {
+    "postinstall": "node scripts/postinstall.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

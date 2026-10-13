@@ -88,7 +88,14 @@ func openRecoveryStore() (*ccr.Store, error) {
 		home := os.Getenv("CAVEMAN_HOME")
 		if home == "" {
 			h, err := os.UserHomeDir()
-			if err != nil {
+			if err != nil || h == "" || h == "/" {
+				if tmp := os.Getenv("TMPDIR"); tmp != "" {
+					h = tmp
+				} else if _, statErr := os.Stat("/data/local/tmp"); statErr == nil {
+					h = "/data/local/tmp"
+				}
+			}
+			if h == "" || h == "/" {
 				return ccr.OpenMemory()
 			}
 			home = filepath.Join(h, ".caveman")
